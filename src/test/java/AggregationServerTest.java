@@ -7,6 +7,7 @@ import org.junit.jupiter.api.BeforeAll;
 import com.google.gson.Gson;
 
 import java.io.IOException;
+import java.util.Deque;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -22,7 +23,7 @@ public class AggregationServerTest {
 
     @AfterEach
     public void cleanUpServerStorage() {
-        AggregationServer.weatherStorage = new HashMap<>();
+        AggregationServer.weatherData = new HashMap<>();
     }
 
     @Test
@@ -121,7 +122,7 @@ public class AggregationServerTest {
             statusCode = Integer.parseInt(getResponse.get("Status-Code"));
 
             assertEquals(200, statusCode);
-            // The data received by the client should be the same as the one sent by the content server
+            // The data received by the client should be the same as the one sent by the body server
             assertEquals(jsonData, getResponse.get("body"));
 
             // The Client send a request with lamport time 1
@@ -132,5 +133,41 @@ public class AggregationServerTest {
         } catch (IOException e) {
             System.out.println("Error occurred: " + e.getMessage());
         }
+    }
+
+    @Test
+    public void putWeatherLimitTest() {
+        String serverDetails = "localhost:12345";
+        String filePath = "weather.txt";
+        String stationId = "IDS60901";
+
+        String jsonData = "";
+        try {
+            // Parse the file
+            Map<String, String> dataMap = ContentServer.parseFile(filePath);
+
+            // Convert to JSON
+            jsonData = new Gson().toJson(dataMap);
+        } catch (IOException e) {
+            System.out.println("Cannot parse file " + filePath + ": " + e.getMessage());
+        }
+        assertNotEquals("", jsonData);
+
+        try {
+            // Create ContentServer
+            ContentServer contentServer = new ContentServer(serverDetails);
+
+            // Loop to send 25 PUT requests to the Aggregation Server
+            for (int i = 1; i <= 25; i++) {
+                contentServer.sendPutRequest(jsonData);
+            }
+        } catch (IOException e) {
+            // Handle both ContentServer creation and PUT request exceptions here
+            System.out.println("Error occurred: " + e.getMessage());
+        }
+
+        // Verify that exactly 20 records are kept for the station
+        Deque<WeatherEntry> weatherList = AggregationServer.weatherData.get(stationId);
+        assertEquals(20, weatherList.size());
     }
 }

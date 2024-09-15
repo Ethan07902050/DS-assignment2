@@ -1,11 +1,14 @@
 import java.io.*;
 import java.net.*;
+import java.nio.file.*;
+import java.util.*;
 import java.util.HashMap;
 import java.util.concurrent.*;
 import java.lang.reflect.Type;
 
-import com.google.gson.reflect.TypeToken;
 import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
+import com.google.gson.reflect.TypeToken;
 import org.json.simple.parser.JSONParser;
 
 public class AggregationServer {
@@ -13,12 +16,15 @@ public class AggregationServer {
     private static final BlockingQueue<Task> taskQueue = new PriorityBlockingQueue<>();
     private static volatile boolean running = true;
     private static ServerSocket serverSocket;
+
+    // Map to store the last 20 updates for each station
+    public static Map<String, Deque<WeatherEntry>> weatherData = new HashMap<>();
+    private static final int MAX_UPDATES = 20;
+
     public static LamportClock clock = new LamportClock();
-    public static HashMap<String, HashMap<String, String>> weatherStorage;
 
     public static void main(String[] args) {
         ExecutorService clientHandlingPool = Executors.newCachedThreadPool();
-        weatherStorage = new HashMap<>();
 
         // Start the task processing thread
         Thread processingThread = new Thread(() -> {
@@ -120,38 +126,95 @@ public class AggregationServer {
             this.priority = priority;
         }
 
+        // Method to add new weather data to the map
+        private int addWeatherData(WeatherEntry entry) {
+            String stationId = entry.body.get("id");
+            int statusCode;
+
+            // Get the deque for the stationId, or create it if it doesn't exist
+            if (weatherData.containsKey(stationId)) {
+                statusCode = 200;
+            } else {
+                statusCode = 201;
+                weatherData.put(stationId, new LinkedList<>());
+            }
+
+            Deque<WeatherEntry> updates = weatherData.get(stationId);
+
+            // If the deque is already full (20 entries), remove the oldest one
+            if (updates.size() >= MAX_UPDATES) {
+                updates.pollFirst(); // Removes the oldest update
+            }
+
+            // Add the new entry to the deque
+            updates.offerLast(entry);
+            return statusCode;
+        }
+
+        // Method to save the data to a file (with atomic write)
+        private void saveDataToFile() throws IOException {
+            Path dirPath = Paths.get("data");
+            if (!Files.exists(dirPath)) {
+                Files.createDirectories(dirPath); // Creates the directory if it doesn't exist
+            }
+            Path filePath = dirPath.resolve("weather_data.json");
+
+            // Convert the map to JSON or another format you prefer
+            String json = convertWeatherDataToJson();
+
+            // Use atomic write to save to file
+            Path tempFile = Files.createTempFile(filePath.getParent(), "temp_", ".tmp");
+            try {
+                Files.write(tempFile, json.getBytes());
+                Files.move(tempFile, filePath, StandardCopyOption.ATOMIC_MOVE);
+            } catch (IOException e) {
+                System.out.println("Error when saving weather data to file: " + e.getMessage());
+                throw e;
+            } finally {
+                if (Files.exists(tempFile)) {
+                    Files.delete(tempFile);
+                }
+            }
+        }
+
+        // Method to convert the weather data to JSON (use any JSON library)
+        private String convertWeatherDataToJson() {
+            Gson gson = new GsonBuilder().setPrettyPrinting().create(); // For pretty-printed JSON
+
+            // Define the type of your weatherData (Map<String, Deque<WeatherEntry>>)
+            Type type = new TypeToken<Map<String, Deque<WeatherEntry>>>() {}.getType();
+
+            // Convert the weatherData map to a JSON string
+            return gson.toJson(weatherData, type);
+        }
+
         public void process() {
             try {
                 clock.increaseTime();
                 if ("PUT".equals(message.get("operation"))) {
-                    // Define the type for HashMap<String, String>
-                    Type type = new TypeToken<HashMap<String, String>>() {}.getType();
+                    WeatherEntry weather = new WeatherEntry(message.get("body"));
+                    int statusCode = addWeatherData(weather);
+                    saveDataToFile();
 
-                    HashMap<String, String> weather = new Gson().fromJson(message.get("body"), type);
-                    String stationId = weather.get("id");
-                    int statusCode;
-                    if (weatherStorage.containsKey(stationId)) {
-                        statusCode = 200;
-                    } else {
-                        statusCode = 201;
-                    }
                     RequestResponseHandler.sendResponse(
                         clientSocket,
                         statusCode,
-                        weather,
+                        weather.body,
                         clock.getTime()
                     );
-                    weatherStorage.put(stationId, weather);
                 } else if ("GET".equals(message.get("operation"))) {
                     String id = message.get("id");
-                    if (weatherStorage.containsKey(id)) {
-                        HashMap<String, String> weather = weatherStorage.get(id);
-                        RequestResponseHandler.sendResponse(
-                            clientSocket,
-                            200,
-                            weather,
-                            clock.getTime()
-                        );
+                    if (weatherData.containsKey(id)) {
+                        Deque<WeatherEntry> weatherList = weatherData.get(id);
+                        WeatherEntry latestWeatherEntry = weatherList.peekLast();
+
+                        if (latestWeatherEntry != null) {
+                            RequestResponseHandler.sendResponse(
+                                    clientSocket,
+                                    200,
+                                    latestWeatherEntry.body,
+                                    clock.getTime());
+                        }
                     }
                 }
             } catch (IOException e) {
