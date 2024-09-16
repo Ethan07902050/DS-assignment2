@@ -1,3 +1,7 @@
+import com.google.gson.JsonElement;
+import com.google.gson.JsonParser;
+import com.google.gson.JsonSyntaxException;
+
 import java.io.*;
 import java.net.*;
 import java.util.*;
@@ -5,7 +9,7 @@ import java.util.HashMap;
 import java.util.concurrent.*;
 
 public class AggregationServer {
-    private static final int PORT = 12345;
+    private static final int PORT = 4567;
     private static BlockingQueue<Task> taskQueue;
     private static volatile boolean running = true;
     private static ServerSocket serverSocket;
@@ -97,17 +101,36 @@ public class AggregationServer {
             this.clientSocket = socket;
         }
 
+        public static boolean isValidJson(String json) {
+            try {
+                JsonElement element = JsonParser.parseString(json);
+                return element.isJsonObject() || element.isJsonArray();
+            } catch (JsonSyntaxException e) {
+                return false;  // The string does not conform to JSON format
+            }
+        }
+
         @Override
         public void run() {
             try {
                 // noinspection InfiniteLoopStatement
                 while(true) {
                     HashMap<String, String> request = RequestResponseHandler.parseRequest(clientSocket);
-                    int receivedTime = Integer.parseInt(request.get("Lamport-Time"));
-                    clock.increaseTime(receivedTime);
+                    String op = request.get("operation");
+                    String body = request.get("body");
+                    if ("PUT".equals(op) && "".equals(body)) {
+                        RequestResponseHandler.sendResponse(clientSocket, 204, null, -1);
+                    } else if ((!"PUT".equals(op)) && (!"GET".equals(op))) {
+                        RequestResponseHandler.sendResponse(clientSocket, 400, null, -1);
+                    } else if ("PUT".equals(op) && !isValidJson(body)) {
+                        RequestResponseHandler.sendResponse(clientSocket, 500, null, -1);
+                    } else {
+                        int receivedTime = Integer.parseInt(request.get("Lamport-Time"));
+                        clock.increaseTime(receivedTime);
 
-                    // Add the task to the priority queue
-                    taskQueue.put(new Task(clientSocket, request, receivedTime));
+                        // Add the task to the priority queue
+                        taskQueue.put(new Task(clientSocket, request, receivedTime));
+                    }
                 }
             } catch (SocketException e) {
                 if (running) {
@@ -189,7 +212,6 @@ public class AggregationServer {
             } catch (IOException e) {
                 System.err.println("Error when sending response to ContentServer: " + e.getMessage());
             }
-
         }
 
         @Override

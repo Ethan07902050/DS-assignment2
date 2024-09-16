@@ -39,21 +39,30 @@ public class RequestResponseHandler {
         String statusText = "";
         if (statusCode == 200) statusText = "OK";
         else if (statusCode == 201) statusText = "Created";
-
-        String jsonData = new Gson().toJson(message);
-
-        // Calculate Content-Length
-        int contentLength = jsonData.getBytes(StandardCharsets.UTF_8).length;
+        else if (statusCode == 204) statusText = "No Content";
+        else if (statusCode == 400) statusText = "Bad Request";
+        else if (statusCode == 500) statusText = "Internal Server Error";
 
         PrintWriter out = new PrintWriter(socket.getOutputStream(), true);
         out.println("HTTP/1.1 " + statusCode + " " + statusText);
-        out.println("Content-Type: application/json");
-        out.println("Content-Length: " + contentLength);
-        out.println("Lamport-Time: " + lamportTime);
-        out.println();
-        out.println(jsonData);
+
+        if (message != null) {
+            String jsonData = new Gson().toJson(message);
+
+            // Calculate Content-Length
+            int contentLength = jsonData.getBytes(StandardCharsets.UTF_8).length;
+
+            out.println("Content-Type: application/json");
+            out.println("Content-Length: " + contentLength);
+            out.println("Lamport-Time: " + lamportTime);
+            out.println();
+            out.println(jsonData);
+        } else out.println();
+
         out.flush();
     }
+
+
 
     public static void sendGetRequest(Socket socket, String stationId, int lamportTime) throws IOException {
         OutputStream outputStream = socket.getOutputStream();

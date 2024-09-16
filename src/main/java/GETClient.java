@@ -20,8 +20,10 @@ public class GETClient {
         try {
             RequestResponseHandler.sendGetRequest(socket, stationId, clock.getTime());
             weather = RequestResponseHandler.parseResponse(socket);
-            int receivedTime = Integer.parseInt(weather.get("Lamport-Time"));
-            clock.increaseTime(receivedTime);
+            if (weather.get("Lamport-Time") != null) {
+                int receivedTime = Integer.parseInt(weather.get("Lamport-Time"));
+                clock.increaseTime(receivedTime);
+            }
         } catch (IOException e) {
             throw new RuntimeException(e);
         }

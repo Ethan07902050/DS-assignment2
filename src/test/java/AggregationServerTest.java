@@ -1,10 +1,14 @@
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.BeforeAll;
 import com.google.gson.Gson;
 
 import java.io.IOException;
+import java.io.OutputStream;
+import java.io.OutputStreamWriter;
+import java.io.PrintWriter;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -16,8 +20,10 @@ import java.util.Map;
 public class AggregationServerTest {
     private static String jsonData = "";
     private static Thread serverThread;
-    private final String serverDetails = "localhost:12345";
+    private final String serverDetails = "localhost:4567";
 
+    // @BeforeEach
+    // void setup() {
     @BeforeAll
     static void setup() {
         // Start the server in a separate thread
@@ -38,13 +44,14 @@ public class AggregationServerTest {
 
     @AfterEach
     public void cleanUpServer() {
+        // AggregationServer.shutdown();
         try {
             Files.deleteIfExists(AggregationServer.weatherFile.filePath);
         } catch (IOException e) {
             System.err.println("Error deleting weather storage");
         }
-        AggregationServer.weatherData = new HashMap<>();
-        AggregationServer.clock = new LamportClock();
+         AggregationServer.weatherData = new HashMap<>();
+         AggregationServer.clock = new LamportClock();
     }
 
     @Test
@@ -77,6 +84,54 @@ public class AggregationServerTest {
             response = contentServer.sendPutRequest(jsonData);
             statusCode = Integer.parseInt(response.get("Status-Code"));
             assertEquals(200, statusCode);
+        } catch (IOException e) {
+            System.out.println("Error occurred: " + e.getMessage());
+        }
+    }
+
+    @Test
+    public void putWeather204Test() {
+        try {
+            ContentServer contentServer = new ContentServer(serverDetails);
+
+            String emptyMessage = "";
+            HashMap<String, String> response = contentServer.sendPutRequest(emptyMessage);
+            int statusCode = Integer.parseInt(response.get("Status-Code"));
+            assertEquals(204, statusCode);
+        } catch (IOException e) {
+            System.out.println("Error occurred: " + e.getMessage());
+        }
+    }
+
+    @Test
+    public void postWeather400Test() {
+        try {
+            ContentServer contentServer = new ContentServer(serverDetails);
+            OutputStream outputStream = contentServer.socket.getOutputStream();
+            PrintWriter writer = new PrintWriter(new OutputStreamWriter(outputStream));
+
+            writer.println("POST /weather.json HTTP/1.1");
+            writer.println("Lamport-Time: 1");
+            writer.println();
+            writer.flush();
+
+            HashMap<String, String> response = RequestResponseHandler.parseResponse(contentServer.socket);
+            int statusCode = Integer.parseInt(response.get("Status-Code"));
+            assertEquals(400, statusCode);
+        } catch (IOException e) {
+            System.out.println("Error occurred: " + e.getMessage());
+        }
+    }
+
+    @Test
+    public void putWeather500Test() {
+        try {
+            ContentServer contentServer = new ContentServer(serverDetails);
+
+            String malformedJson = jsonData.substring(0, jsonData.length() - 1);
+            HashMap<String, String> response = contentServer.sendPutRequest(malformedJson);
+            int statusCode = Integer.parseInt(response.get("Status-Code"));
+            assertEquals(500, statusCode);
         } catch (IOException e) {
             System.out.println("Error occurred: " + e.getMessage());
         }

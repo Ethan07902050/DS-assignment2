@@ -11,7 +11,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 public class ContentServer {
     private String serverName;
     private int port;
-    private Socket socket;
+    public Socket socket;
     public LamportClock clock;
 
     public static void main(String[] args) {
@@ -85,8 +85,10 @@ public class ContentServer {
         RequestResponseHandler.sendPutRequest(socket, jsonData, clock.getTime());
 
         HashMap<String, String> response = RequestResponseHandler.parseResponse(socket);
-        int receivedTime = Integer.parseInt(response.get("Lamport-Time"));
-        clock.increaseTime(receivedTime);
+        if (response.get("Lamport-Time") != null) {
+            int receivedTime = Integer.parseInt(response.get("Lamport-Time"));
+            clock.increaseTime(receivedTime);
+        }
         return response;
     }
 }
