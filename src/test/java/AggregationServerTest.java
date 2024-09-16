@@ -1,37 +1,30 @@
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotEquals;
-
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.BeforeAll;
 import com.google.gson.Gson;
 
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.Deque;
 import java.util.HashMap;
+import java.util.LinkedList;
 import java.util.Map;
 
 public class AggregationServerTest {
+    private static String jsonData = "";
+    private static Thread serverThread;
+    private final String serverDetails = "localhost:12345";
+
     @BeforeAll
     static void setup() {
         // Start the server in a separate thread
-        Thread serverThread = new Thread(() -> {
-            AggregationServer.main(new String[0]);
-        });
+        serverThread = new Thread(() -> AggregationServer.main(new String[0]));
         serverThread.start();
-    }
 
-    @AfterEach
-    public void cleanUpServerStorage() {
-        AggregationServer.weatherData = new HashMap<>();
-    }
-
-    @Test
-    public void putWeather201Test() {
-        String serverDetails = "localhost:12345";
         String filePath = "weather.txt";
-
-        String jsonData = "";
         try {
             // Parse the file
             Map<String, String> dataMap = ContentServer.parseFile(filePath);
@@ -41,8 +34,21 @@ public class AggregationServerTest {
         } catch (IOException e) {
             System.out.println("Cannot parse file " + filePath + ": " + e.getMessage());
         }
-        assertNotEquals("", jsonData);
+    }
 
+    @AfterEach
+    public void cleanUpServer() {
+        try {
+            Files.deleteIfExists(AggregationServer.weatherFile.filePath);
+        } catch (IOException e) {
+            System.err.println("Error deleting weather storage");
+        }
+        AggregationServer.weatherData = new HashMap<>();
+        AggregationServer.clock = new LamportClock();
+    }
+
+    @Test
+    public void putWeather201Test() {
         try {
             // Create ContentServer
             ContentServer contentServer = new ContentServer(serverDetails);
@@ -60,21 +66,6 @@ public class AggregationServerTest {
 
     @Test
     public void putWeather200Test() {
-        String serverDetails = "localhost:12345";
-        String filePath = "weather.txt";
-
-        String jsonData = "";
-        try {
-            // Parse the file
-            Map<String, String> dataMap = ContentServer.parseFile(filePath);
-
-            // Convert to JSON
-            jsonData = new Gson().toJson(dataMap);
-        } catch (IOException e) {
-            System.out.println("Cannot parse file " + filePath + ": " + e.getMessage());
-        }
-        assertNotEquals("", jsonData);
-
         try {
             ContentServer contentServer = new ContentServer(serverDetails);
 
@@ -93,16 +84,9 @@ public class AggregationServerTest {
 
     @Test
     public void getWeatherTest() {
-        String serverDetails = "localhost:12345";
-        String filePath = "weather.txt";
+        String stationId = "IDS60901";
 
         try {
-            // Parse the file
-            Map<String, String> dataMap = ContentServer.parseFile(filePath);
-
-            // Convert to JSON
-            String jsonData = new Gson().toJson(dataMap);
-
             ContentServer contentServer = new ContentServer(serverDetails);
             GETClient client = new GETClient(serverDetails);
 
@@ -118,11 +102,11 @@ public class AggregationServerTest {
             assertEquals(4, contentServer.clock.getTime());
 
             // Send a GET request
-            HashMap<String, String> getResponse = client.sendGetRequest(dataMap.get("id"));
+            HashMap<String, String> getResponse = client.sendGetRequest(stationId);
             statusCode = Integer.parseInt(getResponse.get("Status-Code"));
 
             assertEquals(200, statusCode);
-            // The data received by the client should be the same as the one sent by the body server
+            // The data received by the client should be the same as the one sent by the content server
             assertEquals(jsonData, getResponse.get("body"));
 
             // The Client send a request with lamport time 1
@@ -137,21 +121,7 @@ public class AggregationServerTest {
 
     @Test
     public void putWeatherLimitTest() {
-        String serverDetails = "localhost:12345";
-        String filePath = "weather.txt";
         String stationId = "IDS60901";
-
-        String jsonData = "";
-        try {
-            // Parse the file
-            Map<String, String> dataMap = ContentServer.parseFile(filePath);
-
-            // Convert to JSON
-            jsonData = new Gson().toJson(dataMap);
-        } catch (IOException e) {
-            System.out.println("Cannot parse file " + filePath + ": " + e.getMessage());
-        }
-        assertNotEquals("", jsonData);
 
         try {
             // Create ContentServer
@@ -169,5 +139,74 @@ public class AggregationServerTest {
         // Verify that exactly 20 records are kept for the station
         Deque<WeatherEntry> weatherList = AggregationServer.weatherData.get(stationId);
         assertEquals(20, weatherList.size());
+    }
+
+    @Test
+    public void recoveryAfterSaveDataToFileTest() {
+        String stationId = "IDS60901";
+
+        try {
+            ContentServer contentServer = new ContentServer(serverDetails);
+
+            // Send a PUT request
+            contentServer.sendPutRequest(jsonData);
+
+            // Interrupt and shut down the server
+            System.out.println("Interrupting the server...");
+            AggregationServer.shutdown();
+            serverThread.interrupt();
+            serverThread.join();  // Wait for the server to stop
+
+            // Call the restart method
+            serverThread = new Thread(AggregationServer::restart);
+            serverThread.start();
+
+            // Send a GET request
+            GETClient client = new GETClient(serverDetails);
+            HashMap<String, String> getResponse = client.sendGetRequest(stationId);
+
+            // The data received by the client should be the same as the one sent by the content server
+            assertEquals(jsonData, getResponse.get("body"));
+        } catch (InterruptedException e) {
+            System.out.println("Error occurred: " + e.getMessage());
+        } catch (IOException e) {
+            System.out.println("Server stops");
+        }
+    }
+
+    @Test
+    public void testRecoveryBetweenFilesWriteAndMove() {
+        // Step 1: Initialize paths and the storage file
+        Path filePath = Paths.get("target/data/temp_weather_data.json.tmp");
+        String stationId = "IDS60901";
+        Map<String, Deque<WeatherEntry>> weatherData = new HashMap<>();
+        weatherData.put(stationId, new LinkedList<>());
+        WeatherEntry entry = new WeatherEntry(jsonData);
+        weatherData.get(stationId).offerLast(entry);
+
+        try {
+            // Step 2: Simulate server failure after `Files.write` but before `Files.move`
+            Files.write(filePath, StorageFile.convertWeatherDataToJson(weatherData).getBytes());
+
+            // Step 3: Simulate server crash before `Files.move`
+            System.out.println("Interrupting the server...");
+            AggregationServer.shutdown();
+            serverThread.interrupt();
+            serverThread.join();  // Wait for the server to stop
+
+            // Call the restart method
+            serverThread = new Thread(AggregationServer::restart);
+            serverThread.start();
+
+            // Step 4: Verify the recovered data from the temp file is correct
+            GETClient client = new GETClient(serverDetails);
+            HashMap<String, String> getResponse = client.sendGetRequest(stationId);
+            System.out.println("body: " + getResponse.get("body"));
+            assertEquals(jsonData, getResponse.get("body"));
+        } catch (InterruptedException e) {
+            System.out.println("Error occurred: " + e.getMessage());
+        } catch (IOException e) {
+            System.out.println("Server stops");
+        }
     }
 }

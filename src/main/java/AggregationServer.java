@@ -1,30 +1,31 @@
 import java.io.*;
 import java.net.*;
-import java.nio.file.*;
 import java.util.*;
 import java.util.HashMap;
 import java.util.concurrent.*;
-import java.lang.reflect.Type;
-
-import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
-import com.google.gson.reflect.TypeToken;
-import org.json.simple.parser.JSONParser;
 
 public class AggregationServer {
     private static final int PORT = 12345;
-    private static final BlockingQueue<Task> taskQueue = new PriorityBlockingQueue<>();
+    private static BlockingQueue<Task> taskQueue;
     private static volatile boolean running = true;
     private static ServerSocket serverSocket;
-
-    // Map to store the last 20 updates for each station
-    public static Map<String, Deque<WeatherEntry>> weatherData = new HashMap<>();
     private static final int MAX_UPDATES = 20;
 
+    // Map to store the last 20 updates for each station
+    public static Map<String, Deque<WeatherEntry>> weatherData;
+    public static StorageFile weatherFile;
     public static LamportClock clock = new LamportClock();
 
     public static void main(String[] args) {
+        taskQueue = new PriorityBlockingQueue<>();
         ExecutorService clientHandlingPool = Executors.newCachedThreadPool();
+
+        try {
+            weatherFile = new StorageFile("target/data", "weather_data.json");
+            weatherData = weatherFile.recoverDataFromFile();
+        } catch (IOException e) {
+            System.err.println("Error creating local storage: " + e.getMessage());
+        }
 
         // Start the task processing thread
         Thread processingThread = new Thread(() -> {
@@ -58,7 +59,7 @@ public class AggregationServer {
                 }
             }
         } catch (IOException e) {
-            e.printStackTrace();
+            System.out.println("Error occurred: " + e.getMessage());
         } finally {
             clientHandlingPool.shutdown();
             try {
@@ -72,6 +73,12 @@ public class AggregationServer {
         }
     }
 
+    public static void restart() {
+        running = true;  // Reset the running flag
+        // Reinitialize the server socket or any necessary components here if needed
+        main(new String[0]);  // Restart the server's main method
+    }
+
     public static void shutdown() {
         running = false;
         try {
@@ -79,13 +86,12 @@ public class AggregationServer {
                 serverSocket.close();
             }
         } catch (IOException e) {
-            e.printStackTrace();
+            System.out.println("Error occurred: " + e.getMessage());
         }
     }
 
     private static class ClientHandler implements Runnable {
         private final Socket clientSocket;
-        private final JSONParser jsonParser = new JSONParser();
 
         public ClientHandler(Socket socket) {
             this.clientSocket = socket;
@@ -151,50 +157,13 @@ public class AggregationServer {
             return statusCode;
         }
 
-        // Method to save the data to a file (with atomic write)
-        private void saveDataToFile() throws IOException {
-            Path dirPath = Paths.get("data");
-            if (!Files.exists(dirPath)) {
-                Files.createDirectories(dirPath); // Creates the directory if it doesn't exist
-            }
-            Path filePath = dirPath.resolve("weather_data.json");
-
-            // Convert the map to JSON or another format you prefer
-            String json = convertWeatherDataToJson();
-
-            // Use atomic write to save to file
-            Path tempFile = Files.createTempFile(filePath.getParent(), "temp_", ".tmp");
-            try {
-                Files.write(tempFile, json.getBytes());
-                Files.move(tempFile, filePath, StandardCopyOption.ATOMIC_MOVE);
-            } catch (IOException e) {
-                System.out.println("Error when saving weather data to file: " + e.getMessage());
-                throw e;
-            } finally {
-                if (Files.exists(tempFile)) {
-                    Files.delete(tempFile);
-                }
-            }
-        }
-
-        // Method to convert the weather data to JSON (use any JSON library)
-        private String convertWeatherDataToJson() {
-            Gson gson = new GsonBuilder().setPrettyPrinting().create(); // For pretty-printed JSON
-
-            // Define the type of your weatherData (Map<String, Deque<WeatherEntry>>)
-            Type type = new TypeToken<Map<String, Deque<WeatherEntry>>>() {}.getType();
-
-            // Convert the weatherData map to a JSON string
-            return gson.toJson(weatherData, type);
-        }
-
         public void process() {
             try {
                 clock.increaseTime();
                 if ("PUT".equals(message.get("operation"))) {
                     WeatherEntry weather = new WeatherEntry(message.get("body"));
                     int statusCode = addWeatherData(weather);
-                    saveDataToFile();
+                    weatherFile.saveDataToFile(weatherData);
 
                     RequestResponseHandler.sendResponse(
                         clientSocket,
@@ -218,7 +187,7 @@ public class AggregationServer {
                     }
                 }
             } catch (IOException e) {
-                System.out.println("Error when sending response to ContentServer: " + e.getMessage());
+                System.err.println("Error when sending response to ContentServer: " + e.getMessage());
             }
 
         }
