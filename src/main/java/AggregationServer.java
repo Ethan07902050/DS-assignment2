@@ -7,6 +7,10 @@ import java.net.*;
 import java.util.*;
 import java.util.HashMap;
 import java.util.concurrent.*;
+import java.util.Iterator;
+import java.time.Duration;
+import java.time.LocalDateTime;
+
 
 public class AggregationServer {
     private static final int PORT = 4567;
@@ -14,6 +18,8 @@ public class AggregationServer {
     private static volatile boolean running = true;
     private static ServerSocket serverSocket;
     private static final int MAX_UPDATES = 20;
+    private static final int DATA_EXPIRATION_SECONDS = 30;  // Remove data if no communication for 30 seconds
+    private static final int CLEANUP_INTERVAL_SECONDS = 3; // Cleanup interval: 10 seconds
 
     // Map to store the last 20 updates for each station
     public static Map<String, Deque<WeatherEntry>> weatherData;
@@ -46,6 +52,9 @@ public class AggregationServer {
         });
         processingThread.start();
 
+        // Start the cleanup thread
+        startCleanupThread();
+
         try {
             serverSocket = new ServerSocket(PORT);
             System.out.println("Server started and listening on port " + PORT);
@@ -75,6 +84,46 @@ public class AggregationServer {
             }
             // System.out.println("Server shut down.");
         }
+    }
+
+    public static void startCleanupThread() {
+        // Create a scheduled executor that runs the cleanup task periodically
+        ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
+
+        // Schedule the cleanup task at fixed intervals
+        scheduler.scheduleAtFixedRate(() -> {
+            System.out.println("Running cleanup task...");
+            LocalDateTime now = LocalDateTime.now();
+
+            // Iterate over the weatherData map and remove stations that haven't communicated in 30 seconds
+            Iterator<Map.Entry<String, Deque<WeatherEntry>>> iterator = weatherData.entrySet().iterator();
+
+            while (iterator.hasNext()) {
+                Map.Entry<String, Deque<WeatherEntry>> entry = iterator.next();
+                Deque<WeatherEntry> updates = entry.getValue();
+
+                // Get the timestamp of the last update for this station
+                WeatherEntry latestEntry = updates.peekLast();
+                if (latestEntry != null) {
+                    LocalDateTime lastCommunicationTime = latestEntry.getTimestampAsLocalDateTime();
+                    Duration duration = Duration.between(lastCommunicationTime, now);
+
+                    // If the last communication is older than DATA_EXPIRATION_SECONDS, remove the station
+                    if (duration.getSeconds() > DATA_EXPIRATION_SECONDS) {
+                        System.out.println("Removing station " + entry.getKey() + " due to inactivity.");
+                        iterator.remove();  // Remove the station from weatherData
+                    }
+                }
+            }
+
+            // Save the updated weather data back to the file
+            try {
+                weatherFile.saveDataToFile(weatherData);
+            } catch (IOException e) {
+                System.err.println("Error saving weather data during cleanup: " + e.getMessage());
+            }
+
+        }, 0, CLEANUP_INTERVAL_SECONDS, TimeUnit.SECONDS); // Run every 10 seconds
     }
 
     public static void restart() {
@@ -118,7 +167,8 @@ public class AggregationServer {
                     HashMap<String, String> request = RequestResponseHandler.parseRequest(clientSocket);
                     String op = request.get("operation");
                     String body = request.get("body");
-                    if ("PUT".equals(op) && "".equals(body)) {
+                    String id = request.get("id");
+                    if (("PUT".equals(op) && "".equals(body)) || ("GET".equals(op) && !weatherData.containsKey(id))) {
                         RequestResponseHandler.sendResponse(clientSocket, 204, null, -1);
                     } else if ((!"PUT".equals(op)) && (!"GET".equals(op))) {
                         RequestResponseHandler.sendResponse(clientSocket, 400, null, -1);
@@ -188,12 +238,10 @@ public class AggregationServer {
                     int statusCode = addWeatherData(weather);
                     weatherFile.saveDataToFile(weatherData);
 
-                    RequestResponseHandler.sendResponse(
-                        clientSocket,
-                        statusCode,
-                        weather.body,
-                        clock.getTime()
-                    );
+                    RequestResponseHandler.sendResponse(clientSocket,
+                            statusCode,
+                            weather.body,
+                            clock.getTime());
                 } else if ("GET".equals(message.get("operation"))) {
                     String id = message.get("id");
                     if (weatherData.containsKey(id)) {
@@ -201,8 +249,7 @@ public class AggregationServer {
                         WeatherEntry latestWeatherEntry = weatherList.peekLast();
 
                         if (latestWeatherEntry != null) {
-                            RequestResponseHandler.sendResponse(
-                                    clientSocket,
+                            RequestResponseHandler.sendResponse(clientSocket,
                                     200,
                                     latestWeatherEntry.body,
                                     clock.getTime());
