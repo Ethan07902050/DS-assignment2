@@ -42,7 +42,7 @@ public class LamportClockTest {
     }
 
     @Test
-    public void getWeatherTest() {
+    public void getWeatherLamportClockTest() {
         String stationId = "IDS60901";
 
         try {
