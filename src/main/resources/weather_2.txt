@@ -1,0 +1,17 @@
+id:IDS60902
+name:Melbourne (Olympic Park)
+state: VIC
+time_zone:AEST
+lat:-37.8
+lon:144.9
+local_date_time:15/05:00pm
+local_date_time_full:20230715170000
+air_temp:16.1
+apparent_t:13.0
+cloud:Mostly clear
+dewpt:7.2
+press:1019.5
+rel_hum:55
+wind_dir:SW
+wind_spd_kmh:20
+wind_spd_kt:11

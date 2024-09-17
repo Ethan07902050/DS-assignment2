@@ -22,7 +22,7 @@ public class StatusCodeTest {
         Thread serverThread = new Thread(() -> AggregationServer.main(new String[0]));
         serverThread.start();
 
-        String filePath = "weather.txt";
+        String filePath = "weather_1.txt";
         try {
             // Parse the file
             Map<String, String> dataMap = ContentServer.parseFile(filePath);

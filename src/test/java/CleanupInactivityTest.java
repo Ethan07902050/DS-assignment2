@@ -6,7 +6,6 @@ import com.google.gson.Gson;
 
 import java.io.IOException;
 import java.nio.file.Files;
-import java.util.Deque;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -20,7 +19,7 @@ public class CleanupInactivityTest {
         Thread serverThread = new Thread(() -> AggregationServer.main(new String[0]));
         serverThread.start();
 
-        String filePath = "weather.txt";
+        String filePath = "weather_1.txt";
         try {
             // Parse the file
             Map<String, String> dataMap = ContentServer.parseFile(filePath);
