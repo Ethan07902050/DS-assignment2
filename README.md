@@ -1,5 +1,24 @@
 # 2024 DS Assignment 2
 
+## Table of Contents
+1. [Functionalities](#functionalities)
+2. [UML Diagram](#uml-diagram)
+3. [System Overview](#system-overview)
+  - [AggregationServer](#aggregationserver)
+  - [WeatherEntry](#weatherentry)
+  - [StorageFile](#storagefile)
+  - [LamportClock](#lamportclock)
+  - [ContentServer](#contentserver)
+  - [GETClient](#getclient)
+  - [RequestResponseHandler](#requestresponsehandler)
+4. [Functional Tests](#functional-tests)
+  - [1. StatusCodeTest](#1-statuscodetest)
+  - [2. ClientServerInteractionTest](#2-clientserverinteractiontest)
+  - [3. CleanupInactivityTest](#3-cleanupinactivitytest)
+  - [4. DataManagementTest](#4-datamanagementtest)
+  - [5. FailureRecoveryTest](#5-failurerecoverytest)
+5. [How to Run Tests](#how-to-run-tests)
+
 ## Functionalities
 
 **Completed**
@@ -14,6 +33,9 @@
 **Todo**
 - Retry on errors (server not available etc.) works
 - Content servers are replicated and fault-tolerant
+
+## UML Diagram
+![UML Diagram](docs/UML-v2.pdf)
 
 ## System Overview
 
