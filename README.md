@@ -2,8 +2,9 @@
 
 ## Table of Contents
 1. [Functionalities](#functionalities)
-2. [UML Diagram](#uml-diagram)
-3. [System Overview](#system-overview)
+2. [Execution Guide](#execution-guide)
+3. [UML Diagram](#uml-diagram)
+4. [System Overview](#system-overview)
    - [AggregationServer](#aggregationserver)
    - [WeatherEntry](#weatherentry)
    - [StorageFile](#storagefile)
@@ -11,13 +12,13 @@
    - [ContentServer](#contentserver)
    - [GETClient](#getclient)
    - [RequestResponseHandler](#requestresponsehandler)
-4. [Functional Tests](#functional-tests)
+5. [Functional Tests](#functional-tests)
    - [1. StatusCodeTest](#1-statuscodetest)
    - [2. ClientServerInteractionTest](#2-clientserverinteractiontest)
    - [3. CleanupInactivityTest](#3-cleanupinactivitytest)
    - [4. DataManagementTest](#4-datamanagementtest)
    - [5. FailureRecoveryTest](#5-failurerecoverytest)
-5. [How to Run Tests](#how-to-run-tests)
+6. [How to Run Tests](#how-to-run-tests)
 
 ## Functionalities
 - Text sending works
@@ -28,6 +29,55 @@
 - Lamport clocks are implemented
 - All error codes are implemented
 - Retry on errors (server not available etc.) works
+
+## Execution Guide
+
+This guide provides instructions on how to compile and run the `AggregationServer`, `ContentServer`, and `GETClient` using Maven.
+
+### Step 1: Compile the Project
+
+Before running any of the servers or clients, you need to compile the project using Maven. The following command will build the project while skipping the tests:
+
+```bash
+mvn clean install -DskipTests
+```
+
+### Step 2: Running the AggregationServer
+
+To start the `AggregationServer`, use the following command. By default, it starts on port 4567, but you can specify a different port number as an argument:
+
+```bash
+mvn exec:java -Dexec.mainClass="AggregationServer" -Dexec.args="4567"
+```
+
+In this example, the server will run on port `4567`. If you'd like to use a different port, simply replace `4567` with the desired port number.
+
+### Step 3: Running the ContentServer
+
+The `ContentServer` is responsible for uploading weather data to the `AggregationServer`. It requires two arguments: the server address and the path to the weather data file.
+
+```bash
+mvn exec:java -Dexec.mainClass="ContentServer" -Dexec.args="localhost:4567 weather_1.txt"
+```
+
+In this example:
+- `localhost:4567` is the address of the `AggregationServer`.
+- `weather_1.txt` is the file that contains the weather data to be uploaded.
+
+### Step 4: Running the GETClient
+
+The `GETClient` retrieves weather data from the `AggregationServer`. It requires two arguments: the server address and the station ID.
+
+```bash
+mvn exec:java -Dexec.mainClass="GETClient" -Dexec.args="localhost:4567 IDS60901"
+```
+
+In this example:
+- `localhost:4567` is the address of the `AggregationServer`.
+- `IDS60901` is the station ID for which the weather data is requested. Replace `IDS60901` with the relevant station ID as needed.
+
+### Notes:
+- Ensure that the `AggregationServer` is running before attempting to run the `ContentServer` or `GETClient`.
 
 ## UML Diagram
 

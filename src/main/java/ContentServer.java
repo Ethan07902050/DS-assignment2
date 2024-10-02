@@ -4,9 +4,6 @@ import java.util.HashMap;
 import java.util.Map;
 import java.nio.charset.StandardCharsets;
 import com.google.gson.Gson;
-import com.sun.net.httpserver.HttpHandler;
-
-import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 public class ContentServer {
     private String serverName;
@@ -52,11 +49,11 @@ public class ContentServer {
         ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
         InputStream inputStream = classLoader.getResourceAsStream(filePath);
 
-        // Check that the resource is not null
-        assertNotNull(inputStream, "File not found!");
-
         // Read the file line by line
         Map<String, String> dataMap = new HashMap<>();
+        // Check that the resource is not null
+        if (inputStream == null) return dataMap;
+
         try (BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream, StandardCharsets.UTF_8))) {
             String line;
             while ((line = reader.readLine()) != null) {

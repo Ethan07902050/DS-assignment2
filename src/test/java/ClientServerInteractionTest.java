@@ -15,7 +15,8 @@ import java.util.Map;
 public class ClientServerInteractionTest {
     private static String jsonData1 = "";
     private static String jsonData2 = "";
-    private final String serverDetails = "localhost:4567";
+    private static final String port = "4568";
+    private final String serverDetails = "localhost:" + port;
     private static Thread serverThread;
 
     private static String readFileAsJson(String filePath) {
@@ -33,7 +34,8 @@ public class ClientServerInteractionTest {
     @BeforeAll
     static void setup() {
         // Start the server in a separate thread
-        serverThread = new Thread(() -> AggregationServer.main(new String[0]));
+        String[] arguments = { port };
+        serverThread = new Thread(() -> AggregationServer.main(arguments));
         serverThread.start();
 
         jsonData1 = readFileAsJson("weather_1.txt");

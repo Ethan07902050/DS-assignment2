@@ -16,13 +16,15 @@ import java.util.Map;
 
 public class StatusCodeTest {
     private static String jsonData = "";
-    private final String serverDetails = "localhost:4567";
+    private static final String port = "4570";
+    private final String serverDetails = "localhost:" + port;
     private static Thread serverThread;
 
     @BeforeAll
     static void setup() {
         // Start the server in a separate thread
-        serverThread = new Thread(() -> AggregationServer.main(new String[0]));
+        String[] arguments = { port };
+        serverThread = new Thread(() -> AggregationServer.main(arguments));
         serverThread.start();
 
         String filePath = "weather_1.txt";

@@ -67,7 +67,8 @@ public class RequestResponseHandler {
     public static void sendGetRequest(Socket socket, String stationId, int lamportTime) throws IOException {
         OutputStream outputStream = socket.getOutputStream();
         PrintWriter writer = new PrintWriter(new OutputStreamWriter(outputStream));
-        writer.println("GET /weather.json?id=" + stationId + " HTTP/1.1");
+        if (stationId == null) writer.println("GET /weather.json HTTP/1.1");
+        else writer.println("GET /weather.json?id=" + stationId + " HTTP/1.1");
         writer.println("Lamport-Time: " + lamportTime);
         writer.println();
         writer.flush();
@@ -105,9 +106,11 @@ public class RequestResponseHandler {
             } else if (line.startsWith("GET")) {
                 resultMap.put("operation", "GET");
                 String path = line.split(" ")[1];
-                String param = path.split("\\?")[1];
-                String id = param.split("=")[1];
-                resultMap.put("id", id);
+                if (path.contains("?")) {
+                    String param = path.split("\\?")[1];
+                    String id = param.split("=")[1];
+                    resultMap.put("id", id);
+                } else resultMap.put("id", null);
             }
         }
 

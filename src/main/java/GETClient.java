@@ -68,7 +68,6 @@ public class GETClient {
                 Thread.sleep(RETRY_DELAY_MS);
             } catch (InterruptedException e) {
                 throw new RuntimeException("Unexpected interrupt", e);
-                // Thread.currentThread().interrupt();
             }
         }
 
@@ -105,9 +104,10 @@ public class GETClient {
             HashMap<String, String> response = client.sendGetRequest(stationId);
 
             // Print the response (assuming the response is a map with weather data)
-            if (response != null) {
-                for (String key : response.keySet()) {
-                    System.out.println(key + ": " + response.get(key));
+            if (response.get("body") != null) {
+                WeatherEntry weather = new WeatherEntry(response.get("body"));
+                for (String key : weather.body.keySet()) {
+                    System.out.println(key + ": " + weather.body.get(key));
                 }
             }
         } catch (IOException e) {

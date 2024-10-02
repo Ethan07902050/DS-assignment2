@@ -101,7 +101,7 @@ public class AggregationServer {
 
         // Schedule the cleanup task at fixed intervals
         scheduler.scheduleAtFixedRate(() -> {
-            System.out.println("Running cleanup task...");
+            // System.out.println("Running cleanup task...");
             LocalDateTime now = LocalDateTime.now();
 
             // Iterate over the weatherData map and remove stations that haven't communicated in 30 seconds

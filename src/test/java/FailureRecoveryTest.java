@@ -18,12 +18,14 @@ import java.util.Map;
 public class FailureRecoveryTest {
     private static String jsonData = "";
     private static Thread serverThread;
-    private final String serverDetails = "localhost:4567";
+    private static final String port = "4569";
+    private final String serverDetails = "localhost:" + port;
 
     @BeforeAll
     static void setup() {
         // Start the server in a separate thread
-        serverThread = new Thread(() -> AggregationServer.main(new String[0]));
+        String[] arguments = { port };
+        serverThread = new Thread(() -> AggregationServer.main(arguments));
         serverThread.start();
 
         String filePath = "weather_1.txt";
