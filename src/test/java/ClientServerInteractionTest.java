@@ -1,5 +1,7 @@
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.BeforeAll;
@@ -14,6 +16,7 @@ public class ClientServerInteractionTest {
     private static String jsonData1 = "";
     private static String jsonData2 = "";
     private final String serverDetails = "localhost:4567";
+    private static Thread serverThread;
 
     private static String readFileAsJson(String filePath) {
         try {
@@ -30,7 +33,7 @@ public class ClientServerInteractionTest {
     @BeforeAll
     static void setup() {
         // Start the server in a separate thread
-        Thread serverThread = new Thread(() -> AggregationServer.main(new String[0]));
+        serverThread = new Thread(() -> AggregationServer.main(new String[0]));
         serverThread.start();
 
         jsonData1 = readFileAsJson("weather_1.txt");
@@ -46,6 +49,13 @@ public class ClientServerInteractionTest {
         }
         AggregationServer.weatherData = new HashMap<>();
         AggregationServer.clock = new LamportClock();
+    }
+
+    @AfterAll
+    static void shutdownServer() throws InterruptedException {
+        AggregationServer.shutdown();
+        serverThread.interrupt();
+        serverThread.join();
     }
 
     @Test

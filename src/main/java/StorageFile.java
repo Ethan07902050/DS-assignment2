@@ -74,7 +74,7 @@ public class StorageFile {
             Files.write(tempFile, json.getBytes());
             Files.move(tempFile, filePath, StandardCopyOption.ATOMIC_MOVE);
         } catch (IOException e) {
-            System.out.println("Error when saving weather data to file: " + e.getMessage());
+            System.err.println("Error when saving weather data to file: " + e.getMessage());
             throw e;
         } finally {
             if (Files.exists(tempFile)) {

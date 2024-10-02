@@ -1,4 +1,6 @@
 import static org.junit.jupiter.api.Assertions.assertEquals;
+
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.BeforeAll;
@@ -11,12 +13,15 @@ import java.util.Map;
 
 public class CleanupInactivityTest {
     private static String jsonData = "";
-    private final String serverDetails = "localhost:4567";
+    private static final String port = "4567";
+    private final String serverDetails = "localhost:" + port;
+    private static Thread serverThread;
 
     @BeforeAll
     static void setup() {
         // Start the server in a separate thread
-        Thread serverThread = new Thread(() -> AggregationServer.main(new String[0]));
+        String[] arguments = { port };
+        serverThread = new Thread(() -> AggregationServer.main(arguments));
         serverThread.start();
 
         String filePath = "weather_1.txt";
@@ -42,8 +47,15 @@ public class CleanupInactivityTest {
         AggregationServer.clock = new LamportClock();
     }
 
+    @AfterAll
+    static void shutdownServer() throws InterruptedException {
+        AggregationServer.shutdown();
+        serverThread.interrupt();
+        serverThread.join();
+    }
+
     @Test
-    public void testRemovalAfterInactivity() {
+    public void removalAfterInactivityTest() {
         String stationId = "IDS60901";
 
         try {
@@ -64,7 +76,7 @@ public class CleanupInactivityTest {
             // Step 3: Wait for more than 30 seconds to allow for cleanup of stale data
             // Since waiting for actual 30 seconds is impractical in tests, you can mock or fast-forward the time.
             // However, for simplicity, we'll use Thread.sleep() here.
-            Thread.sleep(35000);  // Wait for 31 seconds (slightly more than 30 seconds)
+            Thread.sleep(35000);  // Wait for 35 seconds (slightly more than 30 seconds)
 
             // Step 4: Send a GET request again to check if the data has been removed
             getResponse = client.sendGetRequest(stationId);

@@ -35,7 +35,7 @@ public class ContentServer {
             contentServer.sendPutRequest(jsonData);
 
         } catch (Exception e) {
-            e.printStackTrace();
+            System.out.println("Error: Unable to connect to the server. Please check the server details." + e.getMessage());
         }
     }
 

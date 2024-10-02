@@ -13,13 +13,16 @@ import java.time.LocalDateTime;
 
 
 public class AggregationServer {
-    private static final int PORT = 4567;
     private static BlockingQueue<Task> taskQueue;
-    private static volatile boolean running = true;
+    private static ScheduledExecutorService scheduler;
+    private static volatile boolean running;
     private static ServerSocket serverSocket;
     private static final int MAX_UPDATES = 20;
     private static final int DATA_EXPIRATION_SECONDS = 30;  // Remove data if no communication for 30 seconds
     private static final int CLEANUP_INTERVAL_SECONDS = 3; // Cleanup interval: 10 seconds
+
+    // List to store active client sockets
+    private static List<Socket> activeClientSockets;
 
     // Map to store the last 20 updates for each station
     public static Map<String, Deque<WeatherEntry>> weatherData;
@@ -27,7 +30,9 @@ public class AggregationServer {
     public static LamportClock clock = new LamportClock();
 
     public static void main(String[] args) {
+        running = true;
         taskQueue = new PriorityBlockingQueue<>();
+        activeClientSockets = new CopyOnWriteArrayList<>();
         ExecutorService clientHandlingPool = Executors.newCachedThreadPool();
 
         try {
@@ -55,6 +60,9 @@ public class AggregationServer {
         // Start the cleanup thread
         startCleanupThread();
 
+        int PORT;
+        if (args.length != 0) PORT = Integer.parseInt(args[0]);
+        else PORT = 4567;
         try {
             serverSocket = new ServerSocket(PORT);
             System.out.println("Server started and listening on port " + PORT);
@@ -62,6 +70,7 @@ public class AggregationServer {
             while (running) {
                 try {
                     Socket clientSocket = serverSocket.accept();
+                    activeClientSockets.add(clientSocket);  // Add to list of active sockets
                     clientHandlingPool.execute(new ClientHandler(clientSocket));
                 } catch (SocketException e) {
                     if (!running) {
@@ -88,7 +97,7 @@ public class AggregationServer {
 
     public static void startCleanupThread() {
         // Create a scheduled executor that runs the cleanup task periodically
-        ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
+        scheduler = Executors.newScheduledThreadPool(1);
 
         // Schedule the cleanup task at fixed intervals
         scheduler.scheduleAtFixedRate(() -> {
@@ -138,9 +147,35 @@ public class AggregationServer {
             if (serverSocket != null && !serverSocket.isClosed()) {
                 serverSocket.close();
             }
+
+            // Close all active client sockets
+            for (Socket clientSocket : activeClientSockets) {
+                try {
+                    if (!clientSocket.isClosed()) {
+                        clientSocket.close();
+                    }
+                } catch (IOException e) {
+                    System.out.println("Error closing client socket: " + e.getMessage());
+                }
+            }
         } catch (IOException e) {
             System.out.println("Error occurred: " + e.getMessage());
         }
+
+        scheduler.shutdown(); // Initiates an orderly shutdown
+
+        try {
+            // Wait for any running tasks to finish
+            if (!scheduler.awaitTermination(10, TimeUnit.SECONDS)) {
+                System.err.println("Forcing shutdown due to timeout...");
+                scheduler.shutdownNow(); // Forcefully shut down if tasks didn't finish in time
+            }
+        } catch (InterruptedException e) {
+            System.err.println("Shutdown interrupted, forcing immediate shutdown...");
+            scheduler.shutdownNow(); // Forcefully shut down if interrupted
+        }
+
+        System.out.println("Cleanup thread stopped.");
     }
 
     private static class ClientHandler implements Runnable {
@@ -190,6 +225,8 @@ public class AggregationServer {
                 }
             } catch (IOException | InterruptedException e) {
                 throw new RuntimeException(e);
+            } finally {
+                activeClientSockets.remove(clientSocket);  // Remove from active list when done
             }
         }
     }

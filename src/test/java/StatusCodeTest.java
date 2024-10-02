@@ -1,4 +1,6 @@
 import static org.junit.jupiter.api.Assertions.assertEquals;
+
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.BeforeAll;
@@ -15,11 +17,12 @@ import java.util.Map;
 public class StatusCodeTest {
     private static String jsonData = "";
     private final String serverDetails = "localhost:4567";
+    private static Thread serverThread;
 
     @BeforeAll
     static void setup() {
         // Start the server in a separate thread
-        Thread serverThread = new Thread(() -> AggregationServer.main(new String[0]));
+        serverThread = new Thread(() -> AggregationServer.main(new String[0]));
         serverThread.start();
 
         String filePath = "weather_1.txt";
@@ -43,6 +46,13 @@ public class StatusCodeTest {
         }
         AggregationServer.weatherData = new HashMap<>();
         AggregationServer.clock = new LamportClock();
+    }
+
+    @AfterAll
+    static void shutdownServer() throws InterruptedException {
+        AggregationServer.shutdown();
+        serverThread.interrupt();
+        serverThread.join();
     }
 
     @Test

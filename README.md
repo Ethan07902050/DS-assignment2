@@ -20,8 +20,6 @@
 5. [How to Run Tests](#how-to-run-tests)
 
 ## Functionalities
-
-**Completed**
 - Text sending works
 - Client, server and content server processes start up and communicate
 - PUT operation works for one content server
@@ -29,10 +27,7 @@
 - Aggregation server expunging expired data works (30s)
 - Lamport clocks are implemented
 - All error codes are implemented
-
-**Todo**
 - Retry on errors (server not available etc.) works
-- Content servers are replicated and fault-tolerant
 
 ## UML Diagram
 
@@ -162,8 +157,6 @@ The `GETClient` class is responsible for querying the `AggregationServer` for we
 - **parseResponse(Socket socket)**:  
   Parses the server’s HTTP response, extracting the status code, headers, and body. It reads the response line-by-line and converts the body back into a `HashMap`.
 
----
-
 ## Functional Tests
 Here is an overview of the functional test classes designed to validate various behaviors of the `AggregationServer`. The tests ensure the correctness of server functionality related to status codes, Lamport clock synchronization, failure recovery, data management, and cleanup for inactivity. The test scripts are in the folder `src/test`.
 
@@ -206,7 +199,7 @@ The ClientServerInteractionTest class verifies various aspects of the interactio
 This test class verifies that the `AggregationServer` properly cleans up stale data from content servers that have not communicated within a specified period (30 seconds).
 
 **Test:**
-- **testRemovalAfterInactivity**:  
+- **removalAfterInactivityTest**:  
   This test ensures that content from a content server, which has not communicated for more than 30 seconds, is removed from the server's storage. It simulates a content server sending a `PUT` request and then checks if the data is properly deleted after 30 seconds of inactivity. The test asserts that after this period, a `GET` request for the station returns a 204 status code (indicating the data has been removed).
 
 ### **4. DataManagementTest**
@@ -223,8 +216,11 @@ This class tests the server’s ability to recover from various failure scenario
 - **recoveryAfterSaveDataToFileTest**:  
   This test simulates a server crash after successfully saving data to the storage file. It sends a `PUT` request, simulates a server crash and restart, and checks whether the server successfully recovers the weather data from the storage file. The test verifies that a `GET` request after the server restart returns the correct weather data.
 
-- **testRecoveryBetweenFilesWriteAndMove**:  
+- **recoveryBetweenFilesWriteAndMoveTest**:  
   This test simulates a server crash between writing data to a temporary file (`Files.write`) and moving it to the permanent location (`Files.move`). It verifies whether the server detects and recovers data from the temporary file upon restart. The test asserts that the weather data is correctly recovered after the crash.
+
+- **clientRetryOnErrorTest**:  
+  This test checks whether the client can successfully retry a GET request and receive the correct data after the server is interrupted and restarted. 
 
 Here's a simple explanation of how to run tests in a Maven project, suitable for including in your README:
 
