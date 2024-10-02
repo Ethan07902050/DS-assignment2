@@ -270,9 +270,7 @@ This class tests the server’s ability to recover from various failure scenario
   This test simulates a server crash between writing data to a temporary file (`Files.write`) and moving it to the permanent location (`Files.move`). It verifies whether the server detects and recovers data from the temporary file upon restart. The test asserts that the weather data is correctly recovered after the crash.
 
 - **clientRetryOnErrorTest**:  
-  This test checks whether the client can successfully retry a GET request and receive the correct data after the server is interrupted and restarted. 
-
-Here's a simple explanation of how to run tests in a Maven project, suitable for including in your README:
+  This test checks whether the client can successfully retry a GET request and receive the correct data after the server is interrupted and restarted.
 
 ## How to Run Tests
 1. **Open a Terminal**: Navigate to the root directory of your Maven project (the directory containing the `pom.xml` file).
