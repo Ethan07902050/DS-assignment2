@@ -218,9 +218,7 @@ public class AggregationServer {
                     }
                 }
             } catch (SocketException e) {
-                if (running) {
-                    System.out.println("Client socket was closed unexpectedly: " + e.getMessage());
-                } else {
+                if (!running) {
                     System.out.println("Server shutting down, socket closed.");
                 }
             } catch (IOException | InterruptedException e) {

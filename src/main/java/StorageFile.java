@@ -8,6 +8,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
+import java.nio.file.StandardOpenOption;
 import java.util.Deque;
 import java.util.HashMap;
 import java.util.Map;
@@ -64,7 +65,7 @@ public class StorageFile {
     }
 
     // Method to save the data to a file (with atomic write)
-    public void saveDataToFile(Map<String, Deque<WeatherEntry>> weatherData) throws IOException {
+    public synchronized void saveDataToFile(Map<String, Deque<WeatherEntry>> weatherData) throws IOException {
         // Convert the map to JSON or another format you prefer
         String json = convertWeatherDataToJson(weatherData);
 
@@ -72,10 +73,9 @@ public class StorageFile {
         Path tempFile = filePath.resolveSibling("temp_" + filePath.getFileName().toString() + ".tmp");
         try {
             Files.write(tempFile, json.getBytes());
-            Files.move(tempFile, filePath, StandardCopyOption.ATOMIC_MOVE);
+            Files.move(tempFile, filePath, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
         } catch (IOException e) {
             System.err.println("Error when saving weather data to file: " + e.getMessage());
-            throw e;
         } finally {
             if (Files.exists(tempFile)) {
                 Files.delete(tempFile);
