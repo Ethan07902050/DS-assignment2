@@ -104,11 +104,14 @@ public class GETClient {
             HashMap<String, String> response = client.sendGetRequest(stationId);
 
             // Print the response (assuming the response is a map with weather data)
-            if (response.get("body") != null) {
+            if (!"".equals(response.get("body"))) {
                 WeatherEntry weather = new WeatherEntry(response.get("body"));
                 for (String key : weather.body.keySet()) {
                     System.out.println(key + ": " + weather.body.get(key));
                 }
+            } else {
+                int statusCode = Integer.parseInt(response.get("Status-Code"));
+                System.out.println("status code: " + statusCode);
             }
         } catch (IOException e) {
             System.out.println("Error: Unable to connect to the server. Please check the server details.");
